@@ -1,0 +1,9 @@
+out/
+artifacts/
+cache/
+
+.env
+.states
+.github
+.prettierrc.json
+node_modules
