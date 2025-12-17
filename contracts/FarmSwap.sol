@@ -67,6 +67,7 @@ contract FarmSwap is ReentrancyGuard, Ownable, Pausable {
     }
    
     // ============ CONSTRUCTOR ============
+    
     constructor(address _tokenA, address _tokenB, address _rewardToken) Ownable() {
         require(_tokenA != address(0) && _tokenB != address(0) && _rewardToken != address(0), "Zero address");
         TOKEN_A = IERC20(_tokenA);
@@ -233,7 +234,7 @@ contract FarmSwap is ReentrancyGuard, Ownable, Pausable {
     
         uint256 pending = 0;
         if (currentRewardPerLpToken > userPaid) {
-            pending = (lpBalances[account] * (currentRewardPerLpToken - userPaid));
+            pending = (lpBalances[account] * (currentRewardPerLpToken - userPaid)) / 1e18;
         }   
     
         return pending + rewards[account];
@@ -246,9 +247,9 @@ contract FarmSwap is ReentrancyGuard, Ownable, Pausable {
         }
    
         uint256 timePassed = block.timestamp - pool.lastUpdateTime;
-        uint256 rewardToAdd = (timePassed * rewardRate) / pool.totalSupply;
+        uint256 rewardToAdd = (timePassed * rewardRate * 1e18) / pool.totalSupply;
    
-        uint256 availableReward = totalRewards / pool.totalSupply;
+        uint256 availableReward = (totalRewards * 1e18) / pool.totalSupply;
         if (rewardToAdd > availableReward) {
             rewardToAdd = availableReward;
         }
@@ -289,7 +290,7 @@ contract FarmSwap is ReentrancyGuard, Ownable, Pausable {
         }
        
         if (rewardToDistribute > 0) {
-            pool.rewardPerLPTokenStored += rewardToDistribute / pool.totalSupply;
+            pool.rewardPerLPTokenStored += (rewardToDistribute * 1e18) / pool.totalSupply;
             totalRewards -= rewardToDistribute;
         }
        
@@ -301,7 +302,7 @@ contract FarmSwap is ReentrancyGuard, Ownable, Pausable {
     }
    
     function _updateUserReward(address account) internal {
-        uint256 pending = lpBalances[account] * (pool.rewardPerLPTokenStored - userRewardPerLPTokenPaid[account]);
+        uint256 pending = (lpBalances[account] * (pool.rewardPerLPTokenStored - userRewardPerLPTokenPaid[account])) / 1e18;
         rewards[account] += pending;
         userRewardPerLPTokenPaid[account] = pool.rewardPerLPTokenStored;
     }
@@ -344,6 +345,14 @@ contract FarmSwap is ReentrancyGuard, Ownable, Pausable {
     /// @notice Unpauses the contract, allowing user interactions.
     function unpause() external onlyOwner {
         _unpause();
+    }
+
+    /// @notice Withdraws stuck tokens in emergency (excluding pool tokens).
+    function emergencyWithdraw(address token, uint256 amount) external onlyOwner {
+        require(token != address(TOKEN_A) && token != address(TOKEN_B) && token != address(REWARD_TOKEN),
+                "Cannot withdraw pool or reward tokens via emergency");
+        _safeTransfer(IERC20(token), owner(), amount);
+        emit EmergencyWithdrawExecuted(token, amount);
     }
 
     /// @notice Withdraws accumulated protocol fees.
